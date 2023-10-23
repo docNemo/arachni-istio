@@ -1,0 +1,117 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: external-hosts-template
+objects:
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: ServiceEntry
+    metadata:
+      name: minio-http-se
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      hosts:
+        - ${MINIO_HOST}
+      location: MESH_EXTERNAL
+      ports:
+        - number: ${{MINIO_INTERNAL_PORT}}
+          name: http-${MINIO_INTERNAL_PORT}
+          protocol: HTTP
+        - number: ${{MINIO_EXTERNAL_PORT}}
+          name: http-${MINIO_EXTERNAL_PORT}
+          protocol: HTTP
+      resolution: DNS
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: Gateway
+    metadata:
+      name: minio-http-gw
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      selector:
+        istio: ${ISTIO_SELECTOR}
+      servers:
+        - hosts:
+            - ${MINIO_HOST}
+          port:
+            number: ${{EGRESS_PORT}}
+            name: http-${EGRESS_PORT}
+            protocol: HTTP
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: minio-http-vs
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      exportTo:
+        - .
+      hosts:
+        - ${MINIO_HOST}
+      gateways:
+        - mesh
+        - minio-http-gw
+      http:
+        - match:
+            - gateways:
+                - mesh
+              port: ${{MINIO_INTERNAL_PORT}}
+          rewrite:
+            authority: ${MINIO_HOST}
+          route:
+            - destination:
+                host: ${EGRESS_APP}-svc
+                port:
+                  number: ${{EGRESS_PORT}}
+        - match:
+            - gateways:
+                - minio-http-gw
+              port: ${{EGRESS_PORT}}
+          rewrite:
+            authority: ${MINIO_HOST}
+          route:
+            - destination:
+                host: ${MINIO_HOST}
+                port:
+                  number: ${{MINIO_EXTERNAL_PORT}}
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: DestinationRule
+    metadata:
+      name: minio-http-dr
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      exportTo:
+        - .
+      host: ${MINIO_HOST}
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+        portLevelSettings:
+          - port:
+              number: ${{MINIO_EXTERNAL_PORT}}
+            tls:
+              mode: ${MINIO_TLS_MODE}
+              sni: ${MINIO_HOST}
+parameters:
+  - name: EGRESS_APP
+    required: true
+    value: "egress-arachni"
+  - name: EGRESS_PORT
+    required: true
+    value: "9999"
+  - name: ISTIO_SELECTOR
+    required: true
+    value: "egress-arachni"
+  - name: MINIO_HOST
+    required: true
+    value: "minio-lab-1.neo"
+  - name: MINIO_INTERNAL_PORT
+    required: true
+    value: "80"
+  - name: MINIO_EXTERNAL_PORT
+    required: true
+    value: "9000"
+  - name: MINIO_TLS_MODE
+    required: true
+    value: "DISABLE"
