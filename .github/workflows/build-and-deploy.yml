@@ -141,7 +141,7 @@ jobs:
 
       - name: Deploy ingress
         run: |
-          oc process -f config/openshift/${{ env.INGRESS_TEMPLATE }} \
+          oc process -f ${{ env.INGRESS_TEMPLATE }} \
           -p APP_NAME=${INGRESS_APP_NAME} \
           -p ISTIO_SELECTOR=${INGRESS_ISTIO_SELECTOR} \
           -p INGRESS_HOST=${INGRESS_HOST} \
@@ -160,14 +160,14 @@ jobs:
 
       - name: Deploy egress
         run: |
-          oc process -f config/openshift/${{ env.EGRESS_TEMPLATE }} \
+          oc process -f ${{ env.EGRESS_TEMPLATE }} \
           -p APP_NAME=${EGRESS_APP_NAME} \
           -p ISTIO_SELECTOR=${EGRESS_ISTIO_SELECTOR} \
           -p PORT=${EGRESS_PORT} | oc apply -f -
 
       - name: Deploy external hosts
         run: |
-          oc process -f config/openshift/${{ env.EXTERNAL_HOSTS_TEMPLATE }} \
+          oc process -f ${{ env.EXTERNAL_HOSTS_TEMPLATE }} \
             -p EGRESS_APP=${EGRESS_APP_NAME} \
             -p EGRESS_PORT=${EGRESS_PORT} \
             -p ISTIO_SELECTOR=${EGRESS_ISTIO_SELECTOR} \
