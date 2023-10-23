@@ -1,0 +1,195 @@
+name: Build and Deploy
+on:
+  pull_request:
+    branches: [ "master", "develop", "release/**", "feature/**" ]
+    types: [ opened, reopened, synchronize, closed ]
+
+env:
+  INGRESS_TEMPLATE: config/ingress.yaml
+  EGRESS_TEMPLATE: config/egress.yaml
+  EXTERNAL_HOSTS_TEMPLATE: config/external-hosts.yaml
+  INGRESS_APP_NAME: ingress-arachni
+  INGRESS_PORT: 8888
+  OBJECTS_APP_NAME: arachni-storage-controller
+  OBJECTS_APP_PORT: 8080
+  ARTICLES_APP_NAME: arachni-articles
+  ARTICLES_APP_PORT: 8080
+  CLASSIFIER_APP_NAME: arachni-classifier
+  CLASSIFIER_APP_PORT: 8080
+
+  EGRESS_APP_NAME: egress-arachni
+  EGRESS_PORT: 9999
+
+jobs:
+  build-and-deploy:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Print env
+        run: |
+          echo "$GITHUB_CONTEXT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # DEFINE ENV
+      - name: Choose source branch
+        if: github.event.pull_request.state == 'open'
+        run: echo "BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
+
+      - name: Choose target branch
+        if: github.event.pull_request.state == 'closed'
+        run: echo "BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+
+      - name: Prepare branch name if open PR
+        uses: jungwinter/split@master
+        id: branch
+        with:
+          msg: ${{ env.BRANCH }}
+          separator: "/"
+          maxsplit: -1
+
+      - name: Set Dev env
+        if: env.BRANCH == 'develop' || startsWith(env.BRANCH, 'feature')
+        run: |
+          echo "CD_MODE=dev" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back-dev" >> $GITHUB_ENV
+          echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back-dev" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back-dev" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "EGRESS_ISTIO_SELECTOR=egress-arachni-back-dev" >> $GITHUB_ENV
+          echo "MINIO_HOST=minio-lab-1.neo" >> $GITHUB_ENV
+          echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
+          echo "MINIO_EXTERNAL_PORT=9000" >> $GITHUB_ENV
+          echo "MINIO_TLS_MODE=DISABLE" >> $GITHUB_ENV
+
+      - name: Set UAT env
+        if: startsWith(env.BRANCH, 'release')
+        run: |
+          echo "CD_MODE=uat" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back-uat" >> $GITHUB_ENV
+          echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back-uat" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back-uat" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "EGRESS_ISTIO_SELECTOR=egress-arachni-back-uat" >> $GITHUB_ENV
+          echo "MINIO_HOST=minio-lab-1.neo" >> $GITHUB_ENV
+          echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
+          echo "MINIO_EXTERNAL_PORT=9000" >> $GITHUB_ENV
+          echo "MINIO_TLS_MODE=DISABLE" >> $GITHUB_ENV
+
+      - name: Set Prod env
+        if: env.BRANCH == 'master'
+        run: |
+          echo "CD_MODE=prod" >> $GITHUB_ENV
+          echo "OS_PROJECT=arachni-back" >> $GITHUB_ENV
+          echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back" >> $GITHUB_ENV
+          echo "INGRESS_HOST=arachni-back" >> $GITHUB_ENV
+          echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "EGRESS_ISTIO_SELECTOR=egress-arachni-back" >> $GITHUB_ENV
+          echo "MINIO_HOST=minio-lab-1.neo" >> $GITHUB_ENV
+          echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
+          echo "MINIO_EXTERNAL_PORT=9000" >> $GITHUB_ENV
+          echo "MINIO_TLS_MODE=DISABLE" >> $GITHUB_ENV
+
+      # DEPLOY
+      - name: ZeroTier
+        uses: zerotier/github-action@v1.0.1
+        with:
+          network_id: ${{ secrets.ZEROTIER_NETWORK_ID }}
+
+      - name: Get DNS server from zerotier
+        id: dns
+        run: |
+          echo "dns=$(sudo zerotier-cli -j listnetworks | jq '.[].dns.servers[0]')" >> $GITHUB_ENV
+
+      - name: Add DNS to resolv.conf
+        run: |
+          sudo mv /etc/resolv.conf /etc/resolv1.conf
+          cat /etc/resolv1.conf | sudo tee -a /etc/resolv.conf
+          echo "nameserver ${{ env.dns }}" | sudo tee -a /etc/resolv.conf
+
+      - name: Install oc
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          oc: 4
+
+      - name: Log in to OpenShift
+        run: |
+          max_iteration=3
+          iteration=1
+          until oc login -u ${{ secrets.LOGIN_OS }} -p ${{ secrets.PASSWORD_OS }} --server=https://${{ secrets.OPENSHIFT_SERVER }}:6443 --insecure-skip-tls-verify
+          do
+              echo "Unsuccessful login to OS $iteration"
+              if [[ $iteration -eq $max_iteration ]]
+              then
+                break
+              fi
+              sleep 15
+              ((iteration++)) 
+          done          
+          oc project ${{ env.OS_PROJECT }}
+          oc whoami
+
+      - name: Delete ingress
+        run: |
+          oc delete all,vs,gw,route -l app=${INGRESS_APP_NAME}
+
+      - name: Deploy ingress
+        run: |
+          oc process -f config/openshift/${{ env.INGRESS_TEMPLATE }} \
+          -p APP_NAME=${INGRESS_APP_NAME} \
+          -p ISTIO_SELECTOR=${INGRESS_ISTIO_SELECTOR} \
+          -p INGRESS_HOST=${INGRESS_HOST} \
+          -p OS_ROUTE=${OS_ROUTE} \
+          -p PORT=${INGRESS_PORT} \
+          -p OBJECTS_APP_NAME=${OBJECTS_APP_NAME} \
+          -p OBJECTS_APP_PORT=${OBJECTS_APP_PORT} \
+          -p ARTICLES_APP_NAME=${ARTICLES_APP_NAME} \
+          -p ARTICLES_APP_PORT=${ARTICLES_APP_PORT} \
+          -p CLASSIFIER_APP_NAME=${CLASSIFIER_APP_NAME} \
+          -p CLASSIFIER_APP_PORT=${CLASSIFIER_APP_PORT}  | oc apply -f -
+
+      - name: Delete egress
+        run: |
+          oc delete all,se,vs,gw,dr -l app=${EGRESS_APP_NAME}
+
+      - name: Deploy egress
+        run: |
+          oc process -f config/openshift/${{ env.EGRESS_TEMPLATE }} \
+          -p APP_NAME=${EGRESS_APP_NAME} \
+          -p ISTIO_SELECTOR=${EGRESS_ISTIO_SELECTOR} \
+          -p PORT=${EGRESS_PORT} | oc apply -f -
+
+      - name: Deploy external hosts
+        run: |
+          oc process -f config/openshift/${{ env.EXTERNAL_HOSTS_TEMPLATE }} \
+            -p EGRESS_APP=${EGRESS_APP_NAME} \
+            -p EGRESS_PORT=${EGRESS_PORT} \
+            -p ISTIO_SELECTOR=${EGRESS_ISTIO_SELECTOR} \
+            -p MINIO_HOST=${MINIO_HOST} \
+            -p MINIO_INTERNAL_PORT=${MINIO_INTERNAL_PORT} \
+            -p MINIO_EXTERNAL_PORT=${MINIO_EXTERNAL_PORT} \
+            -p MINIO_TLS_MODE=${MINIO_TLS_MODE} | oc apply -f -
+
+      - name: Logout from OpenShift
+        run: oc logout
+
+      - name: Get Zerotier ip
+        run: |
+          echo "ip=$(sudo zerotier-cli -j listnetworks | jq '.[].assignedAddresses[0]' | sed 's/\/24//g' | tr -d \\\")" >> $GITHUB_ENV
+
+      - name: Leave from Zerotier network
+        run: sudo zerotier-cli leave ${{ secrets.ZEROTIER_NETWORK_ID }}
+
+      - name: Get Zerotier member by ip
+        run: |
+          echo "member_id=$( curl -X GET -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member | jq '.[] | select(.config.ipAssignments[0]=="${{ env.ip }}") | .nodeId' | tr -d \\\")" >> $GITHUB_ENV
+
+      - name: Delete Zerotier member
+        run: |
+          curl -X DELETE -H "Authorization: token ${{ secrets.ZEROTIER_TOKEN }}" https://api.zerotier.com/api/v1/network/${{ secrets.ZEROTIER_NETWORK_ID }}/member/${{ env.member_id }}
