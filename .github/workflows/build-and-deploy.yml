@@ -57,7 +57,7 @@ jobs:
       - name: Set Dev env
         if: env.BRANCH == 'develop' || startsWith(env.BRANCH, 'feature')
         run: |
-          echo "CD_MODE=dev" >> $GITHUB_ENV
+          echo "STAND=develop" >> $GITHUB_ENV
           echo "OS_PROJECT=arachni-back-dev" >> $GITHUB_ENV
           echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back-dev" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back-dev" >> $GITHUB_ENV
@@ -71,7 +71,7 @@ jobs:
       - name: Set UAT env
         if: startsWith(env.BRANCH, 'release')
         run: |
-          echo "CD_MODE=uat" >> $GITHUB_ENV
+          echo "STAND=uat" >> $GITHUB_ENV
           echo "OS_PROJECT=arachni-back-uat" >> $GITHUB_ENV
           echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back-uat" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back-uat" >> $GITHUB_ENV
@@ -85,7 +85,7 @@ jobs:
       - name: Set Prod env
         if: env.BRANCH == 'master'
         run: |
-          echo "CD_MODE=prod" >> $GITHUB_ENV
+          echo "STAND=prod" >> $GITHUB_ENV
           echo "OS_PROJECT=arachni-back" >> $GITHUB_ENV
           echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back" >> $GITHUB_ENV
@@ -147,11 +147,11 @@ jobs:
           -p INGRESS_HOST=${INGRESS_HOST} \
           -p OS_ROUTE=${OS_ROUTE} \
           -p PORT=${INGRESS_PORT} \
-          -p OBJECTS_APP_NAME=${OBJECTS_APP_NAME} \
+          -p OBJECTS_APP_NAME=${OBJECTS_APP_NAME}-${STAND} \
           -p OBJECTS_APP_PORT=${OBJECTS_APP_PORT} \
-          -p ARTICLES_APP_NAME=${ARTICLES_APP_NAME} \
+          -p ARTICLES_APP_NAME=${ARTICLES_APP_NAME}-${STAND} \
           -p ARTICLES_APP_PORT=${ARTICLES_APP_PORT} \
-          -p CLASSIFIER_APP_NAME=${CLASSIFIER_APP_NAME} \
+          -p CLASSIFIER_APP_NAME=${CLASSIFIER_APP_NAME}-${STAND} \
           -p CLASSIFIER_APP_PORT=${CLASSIFIER_APP_PORT}  | oc apply -f -
 
       - name: Delete egress
