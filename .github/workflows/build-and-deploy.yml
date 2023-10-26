@@ -8,17 +8,14 @@ env:
   INGRESS_TEMPLATE: config/ingress.yaml
   EGRESS_TEMPLATE: config/egress.yaml
   EXTERNAL_HOSTS_TEMPLATE: config/external-hosts.yaml
-  INGRESS_APP_NAME: ingress-arachni
   INGRESS_PORT: 8888
+  EGRESS_PORT: 9999
   OBJECTS_APP_NAME: arachni-storage-controller
   OBJECTS_APP_PORT: 8080
   ARTICLES_APP_NAME: arachni-articles
   ARTICLES_APP_PORT: 8080
   CLASSIFIER_APP_NAME: arachni-classifier
   CLASSIFIER_APP_PORT: 8080
-
-  EGRESS_APP_NAME: egress-arachni
-  EGRESS_PORT: 9999
 
 jobs:
   build-and-deploy:
@@ -60,9 +57,11 @@ jobs:
         run: |
           echo "STAND=develop" >> $GITHUB_ENV
           echo "OS_PROJECT=arachni-back-dev" >> $GITHUB_ENV
+          echo "INGRESS_APP_NAME=ingress-arachni" >> $GITHUB_ENV
           echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back-dev" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back-dev" >> $GITHUB_ENV
           echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "EGRESS_APP_NAME=egress-arachni" >> $GITHUB_ENV
           echo "EGRESS_ISTIO_SELECTOR=egress-arachni-back-dev" >> $GITHUB_ENV
           echo "MINIO_HOST=minio-lab-1.neo" >> $GITHUB_ENV
           echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
@@ -74,9 +73,11 @@ jobs:
         run: |
           echo "STAND=uat" >> $GITHUB_ENV
           echo "OS_PROJECT=arachni-back-uat" >> $GITHUB_ENV
+          echo "INGRESS_APP_NAME=ingress-arachni-uat" >> $GITHUB_ENV
           echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back-uat" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back-uat" >> $GITHUB_ENV
           echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "EGRESS_APP_NAME=egress-arachni-uat" >> $GITHUB_ENV
           echo "EGRESS_ISTIO_SELECTOR=egress-arachni-back-uat" >> $GITHUB_ENV
           echo "MINIO_HOST=minio-lab-1.neo" >> $GITHUB_ENV
           echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
@@ -88,9 +89,11 @@ jobs:
         run: |
           echo "STAND=prod" >> $GITHUB_ENV
           echo "OS_PROJECT=arachni-back" >> $GITHUB_ENV
+          echo "INGRESS_APP_NAME=ingress-arachni-prod" >> $GITHUB_ENV
           echo "INGRESS_ISTIO_SELECTOR=ingress-arachni-back" >> $GITHUB_ENV
           echo "INGRESS_HOST=arachni-back" >> $GITHUB_ENV
           echo "OS_ROUTE=apps.os-lab-3.neo" >> $GITHUB_ENV
+          echo "EGRESS_APP_NAME=egress-arachni-prod" >> $GITHUB_ENV
           echo "EGRESS_ISTIO_SELECTOR=egress-arachni-back" >> $GITHUB_ENV
           echo "MINIO_HOST=minio-lab-1.neo" >> $GITHUB_ENV
           echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
@@ -138,44 +141,44 @@ jobs:
 
       - name: Delete ingress
         run: |
-          oc delete all,vs,gw,route -l app=${INGRESS_APP_NAME}
+          oc delete all,virtualservice,gw,route -l app=${{ env.INGRESS_APP_NAME }}
 
       - name: Deploy ingress
         run: |
           oc process -f ${{ env.INGRESS_TEMPLATE }} \
-          -p APP_NAME=${INGRESS_APP_NAME} \
-          -p ISTIO_SELECTOR=${INGRESS_ISTIO_SELECTOR} \
-          -p INGRESS_HOST=${INGRESS_HOST} \
-          -p OS_ROUTE=${OS_ROUTE} \
-          -p PORT=${INGRESS_PORT} \
-          -p OBJECTS_APP_NAME=${OBJECTS_APP_NAME}-${STAND} \
-          -p OBJECTS_APP_PORT=${OBJECTS_APP_PORT} \
-          -p ARTICLES_APP_NAME=${ARTICLES_APP_NAME}-${STAND} \
-          -p ARTICLES_APP_PORT=${ARTICLES_APP_PORT} \
-          -p CLASSIFIER_APP_NAME=${CLASSIFIER_APP_NAME}-${STAND} \
-          -p CLASSIFIER_APP_PORT=${CLASSIFIER_APP_PORT}  | oc apply -f -
+          -p APP_NAME=${{ env.INGRESS_APP_NAME }} \
+          -p ISTIO_SELECTOR=${{ env.INGRESS_ISTIO_SELECTOR }} \
+          -p INGRESS_HOST=${{ env.INGRESS_HOST }} \
+          -p OS_ROUTE=${{ env.OS_ROUTE }} \
+          -p PORT=${{ env.INGRESS_PORT }} \
+          -p OBJECTS_APP_NAME=${{ env.OBJECTS_APP_NAME }}-${{ env.STAND }} \
+          -p OBJECTS_APP_PORT=${{ env.OBJECTS_APP_PORT }} \
+          -p ARTICLES_APP_NAME=${{ env.ARTICLES_APP_NAME }}-${{ env.STAND }} \
+          -p ARTICLES_APP_PORT=${{ env.ARTICLES_APP_PORT }} \
+          -p CLASSIFIER_APP_NAME=${{ env.CLASSIFIER_APP_NAME }}-${{ env.STAND }} \
+          -p CLASSIFIER_APP_PORT=${{ env.CLASSIFIER_APP_PORT }}  | oc apply -f -
 
       - name: Delete egress
         run: |
-          oc delete all,se,vs,gw,dr -l app=${EGRESS_APP_NAME}
+          oc delete all,se,virtualservice,gw,dr -l app=${{ env.EGRESS_APP_NAME }}
 
       - name: Deploy egress
         run: |
           oc process -f ${{ env.EGRESS_TEMPLATE }} \
-          -p APP_NAME=${EGRESS_APP_NAME} \
-          -p ISTIO_SELECTOR=${EGRESS_ISTIO_SELECTOR} \
-          -p PORT=${EGRESS_PORT} | oc apply -f -
+          -p APP_NAME=${{ env.EGRESS_APP_NAME }} \
+          -p ISTIO_SELECTOR=${{ env.EGRESS_ISTIO_SELECTOR }} \
+          -p PORT=${{ env.EGRESS_PORT }} | oc apply -f -
 
       - name: Deploy external hosts
         run: |
           oc process -f ${{ env.EXTERNAL_HOSTS_TEMPLATE }} \
-            -p EGRESS_APP=${EGRESS_APP_NAME} \
-            -p EGRESS_PORT=${EGRESS_PORT} \
-            -p ISTIO_SELECTOR=${EGRESS_ISTIO_SELECTOR} \
-            -p MINIO_HOST=${MINIO_HOST} \
-            -p MINIO_INTERNAL_PORT=${MINIO_INTERNAL_PORT} \
-            -p MINIO_EXTERNAL_PORT=${MINIO_EXTERNAL_PORT} \
-            -p MINIO_TLS_MODE=${MINIO_TLS_MODE} | oc apply -f -
+            -p EGRESS_APP=${{ env.EGRESS_APP_NAME }} \
+            -p EGRESS_PORT=${{ env.EGRESS_PORT }} \
+            -p ISTIO_SELECTOR=${{ env.EGRESS_ISTIO_SELECTOR }} \
+            -p MINIO_HOST=${{ env.MINIO_HOST }} \
+            -p MINIO_INTERNAL_PORT=${{ env.MINIO_INTERNAL_PORT }} \
+            -p MINIO_EXTERNAL_PORT=${{ env.MINIO_EXTERNAL_PORT }} \
+            -p MINIO_TLS_MODE=${{ env.MINIO_TLS_MODE }} | oc apply -f -
 
       - name: Logout from OpenShift
         run: oc logout
