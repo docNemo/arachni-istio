@@ -3,6 +3,7 @@ kind: Template
 metadata:
   name: external-hosts-template
 objects:
+# MinIO
   - apiVersion: networking.istio.io/v1alpha3
     kind: ServiceEntry
     metadata:
@@ -93,6 +94,94 @@ objects:
             tls:
               mode: ${MINIO_TLS_MODE}
               sni: ${MINIO_HOST}
+# Database
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: ServiceEntry
+    metadata:
+      name: database-se
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      hosts:
+        - ${DATABASE_HOST}
+      location: MESH_EXTERNAL
+      ports:
+        - number: ${{DATABASE_PORT}}
+          name: tcp-${DATABASE_PORT}
+          protocol: TCP
+      resolution: DNS
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: Gateway
+    metadata:
+      name: database-gw
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      selector:
+        istio: ${ISTIO_SELECTOR}
+      servers:
+        - hosts:
+            - ${DATABASE_HOST}
+          port:
+            number: ${{EGRESS_PORT}}
+            name: http-${EGRESS_PORT}
+            protocol: HTTP
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: database-vs
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      exportTo:
+        - .
+      hosts:
+        - ${DATABASE_HOST}
+      gateways:
+        - mesh
+        - database-gw
+      http:
+        - match:
+            - gateways:
+                - mesh
+              port: ${{DATABASE_PORT}}
+          rewrite:
+            authority: ${DATABASE_HOST}
+          route:
+            - destination:
+                host: ${EGRESS_APP}-svc
+                port:
+                  number: ${{EGRESS_PORT}}
+        - match:
+            - gateways:
+                - database-gw
+              port: ${{EGRESS_PORT}}
+          rewrite:
+            authority: ${DATABASE_HOST}
+          route:
+            - destination:
+                host: ${DATABASE_HOST}
+                port:
+                  number: ${{DATABASE_PORT}}
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: DestinationRule
+    metadata:
+      name: database-dr
+      labels:
+        app: ${EGRESS_APP}
+    spec:
+      exportTo:
+        - .
+      host: ${DATABASE_HOST}
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+        portLevelSettings:
+          - port:
+              number: ${{DATABASE_PORT}}
+            tls:
+              mode: ${DATABASE_TLS_MODE}
+              sni: ${DATABASE_HOST}
 parameters:
   - name: EGRESS_APP
     required: true
@@ -113,5 +202,14 @@ parameters:
     required: true
     value: "9000"
   - name: MINIO_TLS_MODE
+    required: true
+    value: "DISABLE"
+  - name: DATABASE_HOST
+    required: true
+    value: "postgres-lab-1.neo"
+  - name: DATABASE_PORT
+    required: true
+    value: "5432"
+  - name: DATABASE_TLS_MODE
     required: true
     value: "DISABLE"
