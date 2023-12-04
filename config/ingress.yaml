@@ -61,8 +61,8 @@ objects:
             - ${INGRESS_HOST}.${OS_ROUTE}
           port:
             number: ${{PORT}}
-            name: http-${PORT}
-            protocol: HTTP
+            name: https-${PORT}
+            protocol: HTTPS
           tls:
             serverCertificate: /etc/istio/ingress-certs/tls.pem
             privateKey: /etc/istio/ingress-certs/tls.key
