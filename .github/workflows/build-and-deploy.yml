@@ -152,6 +152,7 @@ jobs:
           -p APP_NAME=${{ env.INGRESS_APP_NAME }} \
           -p ISTIO_SELECTOR=${{ env.INGRESS_ISTIO_SELECTOR }} \
           -p INGRESS_HOST=${{ env.INGRESS_HOST }} \
+          -p INGRESS_TLS_MODE=${{ env.INGRESS_TLS_MODE }} \
           -p OS_ROUTE=${{ env.OS_ROUTE }} \
           -p PORT=${{ env.INGRESS_PORT }} \
           -p OBJECTS_APP_NAME=${{ env.OBJECTS_APP_NAME }}-${{ env.STAND }} \
