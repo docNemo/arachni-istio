@@ -66,7 +66,7 @@ objects:
             protocol: HTTPS
           tls:
             mode: ${INGRESS_TLS_MODE}
-            serverCertificate: /etc/istio/ingressgateway-certs/tls.pem
+            serverCertificate: /etc/istio/ingressgateway-certs/tls.crt
             privateKey: /etc/istio/ingressgateway-certs/tls.key
             caCertificates: /etc/istio/ingressgateway-certs/chain.pem
   - kind: Route
