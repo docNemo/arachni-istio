@@ -82,7 +82,8 @@ objects:
         weight: 100
       port:
         targetPort: ${PORT}
-      tls: passthrough
+      tls:
+        termination: passthrough
   - apiVersion: networking.istio.io/v1alpha3
     kind: VirtualService
     metadata:
