@@ -16,7 +16,7 @@ objects:
       ports:
         - name: status-port
           port: 15021
-        - name: http-${PORT}
+        - name: https-${PORT}
           port: ${{PORT}}
   - apiVersion: apps/v1
     kind: Deployment
