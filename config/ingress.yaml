@@ -16,7 +16,7 @@ objects:
       ports:
         - name: status-port
           port: 15021
-        - name: http-${PORT}
+        - name: https-${PORT}
           port: ${{PORT}}
   - apiVersion: apps/v1
     kind: Deployment
@@ -40,6 +40,13 @@ objects:
           containers:
             - name: istio-proxy
               image: auto
+              volumeMounts:
+                - mountPath: /etc/istio/ingressgateway-certs
+                  name: ingressgateway-certs
+          volumes:
+            - name: ingressgateway-certs
+              secret:
+                secretName: ingressgateway-certs
   - apiVersion: networking.istio.io/v1alpha3
     kind: Gateway
     metadata:
@@ -55,8 +62,13 @@ objects:
             - ${INGRESS_HOST}.${OS_ROUTE}
           port:
             number: ${{PORT}}
-            name: http-${PORT}
-            protocol: HTTP
+            name: https-${PORT}
+            protocol: HTTPS
+          tls:
+            mode: ${INGRESS_TLS_MODE}
+            serverCertificate: /etc/istio/ingressgateway-certs/tls.pem
+            privateKey: /etc/istio/ingressgateway-certs/tls.key
+            caCertificates: /etc/istio/ingressgateway-certs/chain.pem
   - kind: Route
     apiVersion: route.openshift.io/v1
     metadata:
@@ -71,7 +83,9 @@ objects:
         name: ${APP_NAME}-svc
         weight: 100
       port:
-        targetPort: ${PORT}
+        targetPort: https-${PORT}
+      tls:
+        termination: passthrough
   - apiVersion: networking.istio.io/v1alpha3
     kind: VirtualService
     metadata:
@@ -178,3 +192,6 @@ parameters:
   - name: CLASSIFIER_APP_PORT
     required: true
     value: "8080"
+  - name: INGRESS_TLS_MODE
+    required: true
+    value: "SIMPLE"
