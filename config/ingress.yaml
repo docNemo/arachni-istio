@@ -81,7 +81,7 @@ objects:
         name: ${APP_NAME}-svc
         weight: 100
       port:
-        targetPort: ${PORT}
+        targetPort: https-${PORT}
       tls:
         termination: passthrough
   - apiVersion: networking.istio.io/v1alpha3
