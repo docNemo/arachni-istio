@@ -65,6 +65,7 @@ objects:
             name: https-${PORT}
             protocol: HTTPS
           tls:
+            mode: ${INGRESS_TLS_MODE}
             serverCertificate: /etc/istio/ingress-certs/tls.pem
             privateKey: /etc/istio/ingress-certs/tls.key
             caCertificates: /etc/istio/ingress-certs/chain.pem
@@ -191,3 +192,6 @@ parameters:
   - name: CLASSIFIER_APP_PORT
     required: true
     value: "8080"
+  - name: INGRESS_TLS_MODE
+    required: true
+    value: "SIMPLE"
