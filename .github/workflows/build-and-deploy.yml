@@ -67,6 +67,7 @@ jobs:
           echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
           echo "MINIO_EXTERNAL_PORT=9000" >> $GITHUB_ENV
           echo "MINIO_TLS_MODE=DISABLE" >> $GITHUB_ENV
+          echo "INGRESS_TLS_MODE=SIMPLE" >> $GITHUB_ENV
 
       - name: Set UAT env
         if: startsWith(env.BRANCH, 'release')
@@ -83,6 +84,7 @@ jobs:
           echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
           echo "MINIO_EXTERNAL_PORT=9000" >> $GITHUB_ENV
           echo "MINIO_TLS_MODE=DISABLE" >> $GITHUB_ENV
+          echo "INGRESS_TLS_MODE=MUTUAL" >> $GITHUB_ENV
 
       - name: Set Prod env
         if: env.BRANCH == 'master'
@@ -99,6 +101,7 @@ jobs:
           echo "MINIO_INTERNAL_PORT=80" >> $GITHUB_ENV
           echo "MINIO_EXTERNAL_PORT=9000" >> $GITHUB_ENV
           echo "MINIO_TLS_MODE=DISABLE" >> $GITHUB_ENV
+          echo "INGRESS_TLS_MODE=MUTUAL" >> $GITHUB_ENV
 
       # DEPLOY
       - name: ZeroTier
