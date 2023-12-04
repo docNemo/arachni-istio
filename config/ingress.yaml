@@ -43,6 +43,7 @@ objects:
               volumeMounts:
                 - mountPath: /etc/istio/ingress-certs
                   name: ingress-certs
+                  readOnly: true
           volumes:
             - name: ingress-certs
               secret:
