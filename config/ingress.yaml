@@ -41,13 +41,12 @@ objects:
             - name: istio-proxy
               image: auto
               volumeMounts:
-                - mountPath: /etc/istio/ingress-certs
-                  name: ingress-certs
-                  readOnly: true
+                - mountPath: /etc/istio/ingressgateway-certs
+                  name: ingressgateway-certs
           volumes:
-            - name: ingress-certs
+            - name: ingressgateway-certs
               secret:
-                secretName: ingress-certs
+                secretName: ingressgateway-certs
   - apiVersion: networking.istio.io/v1alpha3
     kind: Gateway
     metadata:
@@ -67,9 +66,9 @@ objects:
             protocol: HTTPS
           tls:
             mode: ${INGRESS_TLS_MODE}
-            serverCertificate: /etc/istio/ingress-certs/tls.pem
-            privateKey: /etc/istio/ingress-certs/tls.key
-            caCertificates: /etc/istio/ingress-certs/chain.pem
+            serverCertificate: /etc/istio/ingressgateway-certs/tls.pem
+            privateKey: /etc/istio/ingressgateway-certs/tls.key
+            caCertificates: /etc/istio/ingressgateway-certs/chain.pem
   - kind: Route
     apiVersion: route.openshift.io/v1
     metadata:
