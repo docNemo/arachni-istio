@@ -1,0 +1,52 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: ${APP_NAME}-template
+objects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${APP_NAME}-svc
+      labels:
+        app: ${APP_NAME}
+    spec:
+      selector:
+        app: ${APP_NAME}
+        istio: ${ISTIO_SELECTOR}
+      ports:
+        - name: status-port
+          port: 15021
+        - name: http-${PORT}
+          port: ${{PORT}}
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${APP_NAME}
+      labels:
+        app: ${APP_NAME}
+    spec:
+      selector:
+        matchLabels:
+          istio: ${ISTIO_SELECTOR}
+      template:
+        metadata:
+          annotations:
+            inject.istio.io/templates: gateway
+          labels:
+            app: ${APP_NAME}
+            istio: ${ISTIO_SELECTOR}
+            sidecar.istio.io/inject: "true"
+        spec:
+          containers:
+            - name: istio-proxy
+              image: auto
+parameters:
+  - name: APP_NAME
+    required: true
+    value: "egress-arachni"
+  - name: ISTIO_SELECTOR
+    required: true
+    value: "egress-arachni"
+  - name: PORT
+    required: true
+    value: "9999"

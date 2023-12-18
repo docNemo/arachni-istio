@@ -1,0 +1,197 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: ${APP_NAME}-template
+objects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: ${APP_NAME}-svc
+      labels:
+        app: ${APP_NAME}
+    spec:
+      selector:
+        app: ${APP_NAME}
+        istio: ${ISTIO_SELECTOR}
+      ports:
+        - name: status-port
+          port: 15021
+        - name: https-${PORT}
+          port: ${{PORT}}
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ${APP_NAME}
+      labels:
+        app: ${APP_NAME}
+    spec:
+      selector:
+        matchLabels:
+          istio: ${ISTIO_SELECTOR}
+      template:
+        metadata:
+          annotations:
+            inject.istio.io/templates: gateway
+          labels:
+            app: ${APP_NAME}
+            istio: ${ISTIO_SELECTOR}
+            sidecar.istio.io/inject: "true"
+        spec:
+          containers:
+            - name: istio-proxy
+              image: auto
+              volumeMounts:
+                - mountPath: /etc/istio/ingressgateway-certs
+                  name: ingressgateway-certs
+          volumes:
+            - name: ingressgateway-certs
+              secret:
+                secretName: ingressgateway-certs
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: Gateway
+    metadata:
+      name: ${APP_NAME}-gw
+      labels:
+        app: ${APP_NAME}
+        istio: ${ISTIO_SELECTOR}
+    spec:
+      selector:
+        istio: ${ISTIO_SELECTOR}
+      servers:
+        - hosts:
+            - ${INGRESS_HOST}.${OS_ROUTE}
+          port:
+            number: ${{PORT}}
+            name: https-${PORT}
+            protocol: HTTPS
+          tls:
+            mode: ${INGRESS_TLS_MODE}
+            serverCertificate: /etc/istio/ingressgateway-certs/tls.pem
+            privateKey: /etc/istio/ingressgateway-certs/tls.key
+            caCertificates: /etc/istio/ingressgateway-certs/chain.pem
+  - kind: Route
+    apiVersion: route.openshift.io/v1
+    metadata:
+      name: ${APP_NAME}-route
+      labels:
+        app: ${APP_NAME}
+        istio: ${ISTIO_SELECTOR}
+    spec:
+      host: ${INGRESS_HOST}.${OS_ROUTE}
+      to:
+        kind: Service
+        name: ${APP_NAME}-svc
+        weight: 100
+      port:
+        targetPort: https-${PORT}
+      tls:
+        termination: passthrough
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: objects-${APP_NAME}-vs
+      labels:
+        app: ${APP_NAME}
+    spec:
+      exportTo:
+        - .
+      hosts:
+        - ${INGRESS_HOST}.${OS_ROUTE}
+      gateways:
+        - ${APP_NAME}-gw
+      http:
+        - match:
+            - uri:
+                prefix: "/api/arachni-objects/"
+          rewrite:
+            uri: "/api/"
+          route:
+            - destination:
+                host: ${OBJECTS_APP_NAME}
+                port:
+                  number: ${{OBJECTS_APP_PORT}}
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: articles-${APP_NAME}-vs
+      labels:
+        app: ${APP_NAME}
+    spec:
+      exportTo:
+        - .
+      hosts:
+        - ${INGRESS_HOST}.${OS_ROUTE}
+      gateways:
+        - ${APP_NAME}-gw
+      http:
+        - match:
+            - uri:
+                prefix: "/api/arachni-articles/"
+          rewrite:
+            uri: "/api/"
+          route:
+            - destination:
+                host: ${ARTICLES_APP_NAME}
+                port:
+                  number: ${{ARTICLES_APP_PORT}}
+  - apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: classifier-${APP_NAME}-vs
+      labels:
+        app: ${APP_NAME}
+    spec:
+      exportTo:
+        - .
+      hosts:
+        - ${INGRESS_HOST}.${OS_ROUTE}
+      gateways:
+        - ${APP_NAME}-gw
+      http:
+        - match:
+            - uri:
+                prefix: "/api/arachni-classifier/"
+          rewrite:
+            uri: "/api/"
+          route:
+            - destination:
+                host: ${CLASSIFIER_APP_NAME}
+                port:
+                  number: ${{CLASSIFIER_APP_PORT}}
+parameters:
+  - name: APP_NAME
+    required: true
+    value: "ingress-arachni"
+  - name: ISTIO_SELECTOR
+    required: true
+    value: "ingress-arachni"
+  - name: INGRESS_HOST
+    required: true
+    value: "arachni-back"
+  - name: OS_ROUTE
+    required: true
+    value: "apps.os-lab-3.neo"
+  - name: PORT
+    required: true
+    value: "8888"
+  - name: OBJECTS_APP_NAME
+    required: true
+    value: "arachni-storage-controller-develop"
+  - name: OBJECTS_APP_PORT
+    required: true
+    value: "8080"
+  - name: ARTICLES_APP_NAME
+    required: true
+    value: "arachni-articles-develop"
+  - name: ARTICLES_APP_PORT
+    required: true
+    value: "8080"
+  - name: CLASSIFIER_APP_NAME
+    required: true
+    value: "arachni-classifier-develop"
+  - name: CLASSIFIER_APP_PORT
+    required: true
+    value: "8080"
+  - name: INGRESS_TLS_MODE
+    required: true
+    value: "SIMPLE"
